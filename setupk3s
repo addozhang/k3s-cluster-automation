@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Read the list of IP addresses from the environment variable
+IP_ADDRESSES=($HOSTS)
+SSH_PORT=22
+SSH_KEY=~/.ssh/id_rsa
+# Define the k3s version
+K3S_VERSION="v1.28.13+k3s1"
+
+for arg in "$@"; do
+    case $arg in
+        --docker)
+            EXTRA_ARGS="$EXTRA_ARGS --docker"
+            shift
+            ;;
+        --mini)
+            EXTRA_ARGS="$EXTRA_ARGS --disable traefik --disable metrics-server --disable local-storage --disable servicelb"
+            shift
+            ;;
+        --no-traefix)
+            EXTRA_ARGS="$EXTRA_ARGS --disable traefik"
+            shift
+            ;;
+        --user)
+            USER="$2"
+            shift 2
+            ;;
+        --key)
+            SSH_KEY="$2"
+            shift 2
+            ;;
+        --k3s-version)
+            K3S_VERSION="$2"
+            shift 2
+            ;;
+    esac
+done
+
+# Check if there is at least one IP address
+if [ ${#IP_ADDRESSES[@]} -eq 0 ]; then
+    echo "No IP addresses found. Please ensure the HOSTS environment variable is correctly set."
+    exit 1
+fi
+
+# Install the master node
+MASTER_IP=${IP_ADDRESSES[0]}
+echo "Installing master node: $MASTER_IP"
+
+k3sup install --ip $MASTER_IP --ssh-port $SSH_PORT --ssh-key $SSH_KEY --user $USER --k3s-version $K3S_VERSION \
+    --k3s-extra-args "--write-kubeconfig-mode 644 --write-kubeconfig ~/.kube/config $EXTRA_ARGS" \
+    --local-path ~/.kube/config
+
+# Install the other agent nodes
+for i in "${!IP_ADDRESSES[@]}"; do
+    if [ $i -ne 0 ]; then
+        AGENT_IP=${IP_ADDRESSES[$i]}
+        echo "Installing agent node: $AGENT_IP"
+        k3sup join --ip $AGENT_IP --ssh-port $SSH_PORT --server-ip $MASTER_IP --ssh-key $SSH_KEY --user $USER \
+        --k3s-channel $K3S_VERSION \
+        --k3s-extra-args "$EXTRA_ARGS"
+    fi
+done
+
+echo "k3s cluster installation complete."
