@@ -5,7 +5,7 @@ IP_ADDRESSES=($HOSTS)
 SSH_PORT=22
 SSH_KEY=~/.ssh/id_rsa
 # Define the k3s version
-K3S_VERSION="v1.28.13+k3s1"
+K3S_VERSION="${K3S_VERSION:-v1.28.13+k3s1}"
 
 for arg in "$@"; do
     case $arg in
@@ -14,11 +14,15 @@ for arg in "$@"; do
             shift
             ;;
         --mini)
-            EXTRA_ARGS="$EXTRA_ARGS --disable traefik --disable metrics-server --disable local-storage --disable servicelb"
+            SERVER_EXTRA_ARGS="$SERVER_EXTRA_ARGS --disable traefik --disable metrics-server --disable local-storage --disable servicelb"
+            shift
+            ;;
+        --embedded-registry)
+            SERVER_EXTRA_ARGS="$SERVER_EXTRA_ARGS --embedded-registry"
             shift
             ;;
         --no-traefix)
-            EXTRA_ARGS="$EXTRA_ARGS --disable traefik"
+            SERVER_EXTRA_ARGS="$SERVER_EXTRA_ARGS --disable traefik"
             shift
             ;;
         --user)
@@ -47,7 +51,7 @@ MASTER_IP=${IP_ADDRESSES[0]}
 echo "Installing master node: $MASTER_IP"
 
 k3sup install --ip $MASTER_IP --ssh-port $SSH_PORT --ssh-key $SSH_KEY --user $USER --k3s-version $K3S_VERSION \
-    --k3s-extra-args "--write-kubeconfig-mode 644 --write-kubeconfig ~/.kube/config $EXTRA_ARGS" \
+    --k3s-extra-args "--write-kubeconfig-mode 644 --write-kubeconfig ~/.kube/config $EXTRA_ARGS $SERVER_EXTRA_ARGS" \
     --local-path ~/.kube/config
 
 # Install the other agent nodes
